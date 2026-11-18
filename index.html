@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IMU Calibration Lab</title>
+    <meta
+      name="description"
+      content="Calibrate accelerometers, gyroscopes and magnetometers from logged CSV data and characterise IMU noise with Allan deviation, in the browser. Data never leaves your computer."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 2v12M2 8h12' stroke='%232a78d6' stroke-width='2'/%3E%3Ccircle cx='8' cy='8' r='5' fill='none' stroke='%23eb6834' stroke-width='1.5'/%3E%3C/svg%3E"
+    />
+    <script type="module" src="src/ui/app.js"></script>
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>IMU Calibration Lab</h1>
+        <p class="tagline">
+          Calibrate an accelerometer, gyroscope or magnetometer from a logged CSV and measure its
+          noise with Allan deviation. Your file is read in this browser and is never uploaded.
+        </p>
+      </div>
+      <nav>
+        <a href="https://github.com/projectbin07-stack/imu-calibration-lab">Source and docs</a>
+        <button type="button" id="btn-link" title="Copy a link to these settings">Copy link</button>
+        <button type="button" id="btn-theme" title="Switch between automatic, light and dark">
+          Theme: auto
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="panel data" aria-label="Data">
+        <div class="data-row">
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept=".csv,.txt,.tsv,text/csv,text/plain" />
+            <strong>Drop a CSV log here</strong> or click to choose one.
+            <span class="muted"
+              >Plain <code>t,ax,ay,az,gx,gy,gz,mx,my,mz</code>, MPU6050 raw counts, any named
+              columns, or a serial-scope export.</span
+            >
+          </label>
+          <div class="samples">
+            <label class="row"
+              ><span>Or try a sample</span>
+              <select id="sample"></select>
+            </label>
+            <p class="note synthetic" id="sample-note"></p>
+          </div>
+        </div>
+        <p class="status" id="status" role="status">loading</p>
+        <ul class="warnings" id="data-warnings"></ul>
+        <details id="mapper-box">
+          <summary>Columns and units</summary>
+          <div class="mapper" id="mapper"></div>
+          <div class="units" id="units"></div>
+        </details>
+      </section>
+
+      <div class="tabs" role="tablist" aria-label="Analysis">
+        <button type="button" role="tab" data-tab="accel" id="tab-accel">Accelerometer</button>
+        <button type="button" role="tab" data-tab="gyro" id="tab-gyro">Gyroscope</button>
+        <button type="button" role="tab" data-tab="mag" id="tab-mag">Magnetometer</button>
+        <button type="button" role="tab" data-tab="allan" id="tab-allan">Allan deviation</button>
+      </div>
+
+      <section class="panel tabpanel" id="panel-accel" role="tabpanel" aria-labelledby="tab-accel">
+        <div class="controls">
+          <label
+            ><span>Model</span>
+            <select id="model">
+              <option value="auto">auto</option>
+              <option value="six">six-position (bias, scale)</option>
+              <option value="twelve">twelve-parameter (axis poses)</option>
+              <option value="nine">nine-parameter (any poses)</option>
+            </select>
+          </label>
+          <label
+            ><span>Window (s)</span><input id="window" type="number" min="0.05" step="0.05"
+          /></label>
+          <label><span>Threshold k</span><input id="k" type="number" min="1" step="1" /></label>
+          <label
+            ><span>Shortest pose (s)</span><input id="minStatic" type="number" min="0.1" step="0.1"
+          /></label>
+        </div>
+        <p class="summary" id="accel-summary"></p>
+        <ul class="warnings" id="accel-warnings"></ul>
+        <figure>
+          <figcaption>Accelerometer (g); detected static segments shaded</figcaption>
+          <canvas id="accel-ts" class="chart ts"></canvas>
+        </figure>
+        <div class="grid2">
+          <div>
+            <h3>Parameters</h3>
+            <div class="table-wrap" id="accel-params"></div>
+          </div>
+          <figure>
+            <figcaption>
+              |a| - 1 g per static sample, before and after (mg); after calibration the sensor noise
+              sets the width
+            </figcaption>
+            <canvas id="accel-hist" class="chart hist"></canvas>
+          </figure>
+        </div>
+        <h3>Poses</h3>
+        <div class="table-wrap" id="accel-poses"></div>
+      </section>
+
+      <section class="panel tabpanel" id="panel-gyro" role="tabpanel" aria-labelledby="tab-gyro">
+        <div class="controls">
+          <label
+            ><span>Known rotation (deg)</span><input id="angle" type="number" min="1" step="1"
+          /></label>
+          <label
+            ><span>Temperature bin (degC, 0 = off)</span
+            ><input id="tempBin" type="number" min="0" step="0.5"
+          /></label>
+        </div>
+        <p class="summary" id="gyro-summary"></p>
+        <ul class="warnings" id="gyro-warnings"></ul>
+        <figure>
+          <figcaption>
+            Gyroscope (deg/s); static segments shaded, rotations used for scale marked
+          </figcaption>
+          <canvas id="gyro-ts" class="chart ts"></canvas>
+        </figure>
+        <div class="grid2">
+          <div>
+            <h3>Parameters</h3>
+            <div class="table-wrap" id="gyro-params"></div>
+          </div>
+          <figure>
+            <figcaption>Bias against temperature: bin means and the fitted lines</figcaption>
+            <canvas id="gyro-temp" class="chart hist"></canvas>
+          </figure>
+        </div>
+      </section>
+
+      <section class="panel tabpanel" id="panel-mag" role="tabpanel" aria-labelledby="tab-mag">
+        <div class="controls">
+          <label
+            ><span>Dip angle (deg, empty = from accelerometer)</span
+            ><input id="dip" type="number" min="-90" max="90" step="1"
+          /></label>
+        </div>
+        <p class="summary" id="mag-summary"></p>
+        <ul class="warnings" id="mag-warnings"></ul>
+        <figure>
+          <figcaption>
+            Projections of the samples: raw (grey, around the hard-iron offset) and corrected
+            (colour, a circle of the field strength)
+          </figcaption>
+          <canvas id="mag-proj" class="chart proj"></canvas>
+        </figure>
+        <div class="grid2">
+          <figure>
+            <figcaption>3D view: drag to rotate</figcaption>
+            <canvas id="mag-3d" class="chart cube"></canvas>
+          </figure>
+          <div>
+            <h3>Parameters</h3>
+            <div class="table-wrap" id="mag-params"></div>
+            <figure>
+              <figcaption>|m| minus its mean, before and after</figcaption>
+              <canvas id="mag-hist" class="chart hist"></canvas>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel tabpanel" id="panel-allan" role="tabpanel" aria-labelledby="tab-allan">
+        <div class="controls">
+          <label
+            ><span>Sensor</span>
+            <select id="allanSensor">
+              <option value="gyro">gyroscope</option>
+              <option value="accel">accelerometer</option>
+            </select>
+          </label>
+        </div>
+        <p class="summary" id="allan-summary"></p>
+        <ul class="warnings" id="allan-warnings"></ul>
+        <figure>
+          <figcaption>
+            Overlapping Allan deviation with 1-sigma error bars; dashed: fitted -1/2 and +1/2 slope
+            lines and the bias-instability floor
+          </figcaption>
+          <canvas id="allan-plot" class="chart allan"></canvas>
+        </figure>
+        <h3>Noise terms</h3>
+        <div class="table-wrap" id="allan-table"></div>
+        <p class="note">
+          Error bars and +/- figures: 1/sqrt(2 (N/m - 1)) for a single point with N/m clusters.
+          Points with fewer than about three independent clusters are drawn but not used for the
+          read-offs.
+        </p>
+      </section>
+
+      <section class="panel export" aria-label="Export">
+        <h2>Export</h2>
+        <p class="note" id="export-note"></p>
+        <div class="export-bar">
+          <select id="export-kind">
+            <option value="c">C/C++ header</option>
+            <option value="json">JSON</option>
+          </select>
+          <button type="button" id="btn-copy">Copy</button>
+          <button type="button" id="btn-download">Download</button>
+        </div>
+        <textarea id="export-text" readonly spellcheck="false" rows="16"></textarea>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        All bundled samples are synthetic: generated with known errors so the recovered values can
+        be checked. Nothing here has been validated on a physical sensor yet. Methods and sources:
+        <a
+          href="https://github.com/projectbin07-stack/imu-calibration-lab/blob/main/docs/methods.md"
+          >docs/methods.md</a
+        >. MIT licence.
+      </p>
+    </footer>
+  </body>
+</html>
