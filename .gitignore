@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+*.log
+.DS_Store
+out/
+# Logs you capture and files the CLI writes stay local
+*.csv
+!examples/*.csv
+!tests/fixtures/*.csv
+*.h
