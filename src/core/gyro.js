@@ -182,9 +182,10 @@ export function integrate(data, start, end, bias) {
  * Calibrate a gyroscope log: bias (and temperature model) from static
  * samples; scale from the motion between static segments. For each axis the
  * rotation used is the moving interval whose integrated angle is largest on
- * that axis and at least 80 % of the total angle (a rotation about that
- * axis alone). The interval runs from the end of one static segment to the
- * start of the next, so it contains the whole rotation.
+ * that axis, at least 80 % of the total angle (a rotation about that axis
+ * alone) and at least 75 % of the known angle. The interval runs from the
+ * end of one static segment to the start of the next, so it contains the
+ * whole rotation.
  * @param {Dataset} data
  * @param {Partial<GyroOptions>} [options]
  * @returns {GyroResult}
@@ -249,7 +250,7 @@ export function calibrateGyro(data, options = {}) {
     for (const m of ints) {
       const total = Math.hypot(...m.integrated);
       const on = Math.abs(m.integrated[axis]);
-      if (!o.rotation && (on < 0.8 * total || on < 0.25 * o.knownAngle)) continue;
+      if (!o.rotation && (on < 0.8 * total || on < 0.75 * o.knownAngle)) continue;
       if (!best || on > Math.abs(best.integrated[axis])) best = m;
     }
     if (!best) continue;

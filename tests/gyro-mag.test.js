@@ -55,7 +55,7 @@ test("gyroscope without temperature: constant bias; manual rotation window; whol
 
 test("gyroscope: a wrong known angle is flagged; a too-narrow temperature range is reported", () => {
   const { data } = synthGyro({ seed: 1 });
-  const r = calibrateGyro(data, { knownAngle: 720 });
+  const r = calibrateGyro(data, { knownAngle: 400 });
   assert.ok(r.warnings.some((w) => w.includes("more than 10 %")));
   const flat = synthGyro({ seed: 1, tempStart: 30.4, tempEnd: 30.6 });
   const r2 = calibrateGyro(flat.data);
