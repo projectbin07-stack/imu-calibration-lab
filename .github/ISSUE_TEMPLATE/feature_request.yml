@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest a calibration method, an import format, a chart or a change
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What would you like to calibrate, import or see that is hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Reference to the paper, standard or datasheet for a method, or an example of the file format.
+  - type: textarea
+    id: verification
+    attributes:
+      label: How could it be tested?
+      description: A method should come with a synthetic test that recovers known parameters, ideally plus a published reference result. Logs from real sensors with an independent reference are very welcome.

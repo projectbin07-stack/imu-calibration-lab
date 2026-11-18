@@ -1,0 +1,33 @@
+name: Bug report
+description: A wrong calibration, a file that will not import, a crash, or something broken in the app or the CLI
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw and what you expected. For a wrong number, say why you expected a different one (synthetic truth, hand calculation, datasheet, another tool, a reference measurement).
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The page link (use "Copy link"), or the CLI command line. For an import problem, paste the header line and a few rows of the CSV; do not attach large logs.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: sensor
+    attributes:
+      label: Sensor and full-scale settings
+      description: For example MPU6050 at +/-2 g and +/-250 deg/s, logged at 100 Hz.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Output of `imu-calibration-lab --version`, or the commit hash.
+  - type: input
+    id: environment
+    attributes:
+      label: Browser or Node version, and OS

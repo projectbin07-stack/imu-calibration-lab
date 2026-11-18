@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dev tools
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Type check (JSDoc, strict)
+        run: npm run typecheck
+
+      - name: Test with coverage thresholds
+        run: npm run coverage
+
+      - name: CLI smoke test
+        shell: bash
+        run: |
+          B=bin/imu-calibration-lab.js
+          node $B --version
+          node $B accel examples/accel-15pose.csv
+          node $B accel examples/accel-15pose.csv --json > accel.json
+          node -e "const j = require('./accel.json'); if (j.model !== 'nine' || j.poses.length !== 15 || !(j.residuals.rmsAfter < 0.001)) process.exit(1)"
+          node $B accel examples/accel-6pose-mpu6050-raw.csv --model six
+          node $B gyro examples/gyro-turns-mpu6050-raw.csv
+          node $B gyro examples/gyro-turns-mpu6050-raw.csv --json > gyro.json
+          node -e "const j = require('./gyro.json'); if (j.rotations.length !== 3 || Math.abs(j.scale[2] - 1.034) > 0.002) process.exit(1)"
+          node $B mag examples/mag-tumble.csv
+          node $B synth noise --seconds 900 --out noise.csv
+          node $B allan noise.csv
+          node $B allan noise.csv --json > allan.json
+          node -e "const j = require('./allan.json'); if (Math.abs(j.axes[0].whiteNoise - 0.3) > 0.03) process.exit(1)"
+          # Same input, same bytes.
+          node $B allan noise.csv --json | cmp - allan.json
+
+      - name: Compile the C/C++ export and compare with JavaScript
+        if: runner.os == 'Linux'
+        run: node scripts/check-c-export.js
+
+  browser:
+    name: Browser smoke test (headless Chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Load the page with each sample and check the results in the DOM
+        run: |
+          node scripts/serve.js &
+          sleep 1
+          dump() {
+            google-chrome --headless=new --disable-gpu --no-sandbox \
+              --virtual-time-budget=20000 --dump-dom "http://127.0.0.1:8000/$1" > "$2"
+            grep -o 'id="status"[^<]*' "$2"
+          }
+          # Default page: the 15-pose accelerometer sample, calibrated.
+          dump "" accel.html
+          grep -q 'id="status" class="status">ready: sample' accel.html
+          grep -o 'id="accel-summary"[^<]*' accel.html
+          grep -q '15 poses, nine model' accel.html
+          dump "?s=gyro" gyro.html
+          grep -o 'id="gyro-summary"[^<]*' gyro.html
+          grep -q 'scale \[1.021, 0.987, 1.034\] from 3 rotation' gyro.html
+          dump "?s=mag" mag.html
+          grep -o 'id="mag-summary"[^<]*' mag.html
+          grep -q 'Hard iron \[18.5' mag.html
+          dump "?s=noise" noise.html
+          grep -o 'id="allan-summary"[^<]*' noise.html
+          grep -q '360000 samples over 60 min' noise.html
+          grep -q '<td>X</td><td>0.3' noise.html
