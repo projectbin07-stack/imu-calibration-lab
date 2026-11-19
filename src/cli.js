@@ -253,7 +253,17 @@ function run(argv, io) {
   });
   const { data } = loaded;
 
-  const head = `${arg}: ${data.t.length} samples, ${f(data.t[data.t.length - 1], 5)} s at ${f(data.fs, 4)} Hz; units accel ${loaded.units.accel}${loaded.units.accel === "lsb" ? ` (+/-${loaded.units.accelRange} g)` : ""}, gyro ${loaded.units.gyro}${loaded.units.gyro === "lsb" ? ` (+/-${loaded.units.gyroRange} deg/s)` : ""}, mag ${loaded.units.mag}\n`;
+  const u = loaded.units;
+  const unitText = [
+    data.acc && `accel ${u.accel}${u.accel === "lsb" ? ` (+/-${u.accelRange} g)` : ""}`,
+    data.gyro && `gyro ${u.gyro}${u.gyro === "lsb" ? ` (+/-${u.gyroRange} deg/s)` : ""}`,
+    data.mag && `mag ${u.mag}`,
+    data.temp && `temp ${u.temp}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const head = `${arg}: ${data.t.length} samples, ${f(data.t[data.t.length - 1], 5)} s at ${f(data.fs, 4)} Hz; ${unitText}
+`;
   const warnLines = (/** @type {string[]} */ ws) => ws.map((x) => `warning: ${x}\n`).join("");
 
   if (cmd === "accel") {

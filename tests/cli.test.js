@@ -52,7 +52,7 @@ test("accel --json has the documented shape and is deterministic", () => {
 test("accel on the raw six-position file: units detected, text and C output", () => {
   const t = cli(["accel", "examples/accel-6pose-mpu6050-raw.csv"]);
   assert.equal(t.code, 0, t.err);
-  assert.match(t.out, /units accel lsb \(\+\/-2 g\)/);
+  assert.match(t.out, /; accel lsb \(\+\/-2 g\), gyro lsb \(\+\/-250 deg\/s\)\n/);
   assert.match(t.out, /model: twelve/);
   assert.match(t.out, /\+X up/);
   const six = cli(["accel", "examples/accel-6pose-mpu6050-raw.csv", "--model", "six", "--json"]);
