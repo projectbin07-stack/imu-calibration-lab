@@ -85,7 +85,7 @@ jobs:
           }
           # Default page: the 15-pose accelerometer sample, calibrated.
           dump "" accel.html
-          grep -q 'id="status" class="status">ready: sample' accel.html
+          grep -q 'role="status">ready: sample' accel.html
           grep -o 'id="accel-summary"[^<]*' accel.html
           grep -q '15 poses, nine model' accel.html
           dump "?s=gyro" gyro.html
