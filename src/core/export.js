@@ -282,7 +282,7 @@ export function cHeader(input) {
     out.push("    imu_gyro_apply(&IMU_GYRO_CAL, w, temp_c, w_cal);");
   }
   if (mag) {
-    out.push("    float m[3] = {/* your magnetometer reading */}, m_cal[3];");
+    out.push("    float m[3] = {mx, my, mz}, m_cal[3];  // your magnetometer reading");
     out.push("    imu_mag_apply(&IMU_MAG_CAL, m, m_cal);");
   }
   out.push("  }");

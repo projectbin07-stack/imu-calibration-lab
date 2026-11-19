@@ -111,6 +111,9 @@ test("C header holds the constants and apply functions for each sensor", () => {
   // every float literal is a valid C literal
   for (const lit of h.match(/-?[0-9][0-9.e-]*f\b/g) ?? [])
     assert.match(lit, /^-?\d+(\.\d+)?(e-?\d+)?f$/);
+  // the Arduino example is one block comment: no nested comment opener
+  assert.equal((h.match(/\/\*/g) ?? []).length, 1);
+  assert.equal((h.match(/\*\//g) ?? []).length, 1);
   // braces balance
   assert.equal((h.match(/\{/g) ?? []).length, (h.match(/\}/g) ?? []).length);
   const gOnly = cHeader({
