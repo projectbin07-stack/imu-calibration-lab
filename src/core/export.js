@@ -262,7 +262,7 @@ export function cHeader(input) {
   out.push("/* Arduino example (MPU6050 at 0x68, Wire library):");
   out.push("", "  #include <Wire.h>", '  #include "imu_calibration.h"', "");
   out.push(
-    "  static int16_t read16() { int16_t v = Wire.read() << 8; return v | Wire.read(); }",
+    "  static int16_t read16() { uint8_t hi = Wire.read(); uint8_t lo = Wire.read(); return (int16_t)((hi << 8) | lo); }",
     "",
   );
   out.push("  void loop() {");
