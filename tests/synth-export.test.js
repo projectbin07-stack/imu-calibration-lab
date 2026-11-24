@@ -1,7 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { calibrateAccel } from "../src/core/accel.js";
-import { accelJson, cf, cHeader, gyroJson, magJson, roundDeep, sig } from "../src/core/export.js";
+import {
+  accelJson,
+  cf,
+  cHeader,
+  combinedJsonText,
+  gyroJson,
+  magJson,
+  roundDeep,
+  sig,
+  VERSION,
+} from "../src/core/export.js";
 import { calibrateGyro } from "../src/core/gyro.js";
 import { loadCsv } from "../src/core/load.js";
 import { calibrateMag } from "../src/core/mag.js";
@@ -136,4 +146,17 @@ test("JSON summaries carry the parameters and no per-sample arrays", () => {
   const m = /** @type {any} */ (magJson(calibrateMag(synthMag({ seed: 1 }).data)));
   assert.equal(m.plot, undefined);
   assert.equal(m.softIron.length, 3);
+});
+
+test("combined file: generator, source and the three summaries in a fixed order", () => {
+  const accel = accelJson(calibrateAccel(synthAccel({ seed: 1 }).data));
+  const text = combinedJsonText({ source: "sample", accel, gyro: null, mag: null });
+  assert.ok(text.endsWith("}\n"));
+  const j = JSON.parse(text);
+  assert.deepEqual(Object.keys(j), ["generator", "source", "accel", "gyro", "mag"]);
+  assert.equal(j.generator, `imu-calibration-lab ${VERSION}`);
+  assert.equal(j.source, "sample");
+  assert.deepEqual(j.accel, accel);
+  assert.equal(j.gyro, null);
+  assert.equal(j.mag, null);
 });

@@ -137,6 +137,30 @@ export function allanJson(r) {
 }
 
 /**
+ * The parts of a combined calibration file: the per-sensor JSON summaries
+ * from accelJson, gyroJson and magJson (or null when absent).
+ * @typedef {object} CombinedParts
+ * @property {string} source file or sample name the calibrations came from
+ * @property {unknown} accel
+ * @property {unknown} gyro
+ * @property {unknown} mag
+ */
+
+/**
+ * The combined calibration file the page exports:
+ * { generator, source, accel, gyro, mag }, two-space indented, with a
+ * trailing newline. The browser and the CLI both call this, so the bytes are
+ * the same for the same parts.
+ * @param {CombinedParts} parts
+ * @returns {string}
+ */
+export function combinedJsonText(parts) {
+  const { source, accel, gyro, mag } = parts;
+  const generator = `imu-calibration-lab ${VERSION}`;
+  return JSON.stringify({ generator, source, accel, gyro, mag }, null, 2) + "\n";
+}
+
+/**
  * C float literal.
  * @param {number} v
  * @returns {string}

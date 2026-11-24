@@ -5,7 +5,7 @@
 import { calibrateAccel } from "../core/accel.js";
 import { allanForDataset } from "../core/allan.js";
 import { buildDataset, CHANNELS, CsvError } from "../core/csv.js";
-import { accelJson, cHeader, gyroJson, magJson, sig, VERSION } from "../core/export.js";
+import { accelJson, cHeader, combinedJsonText, gyroJson, magJson, sig } from "../core/export.js";
 import { calibrateGyro } from "../core/gyro.js";
 import { loadCsv } from "../core/load.js";
 import { calibrateMag } from "../core/mag.js";
@@ -641,17 +641,12 @@ function renderExport() {
       ? ""
       : kind === "c"
         ? cHeader({ accel, gyro, mag, units: app.units, source: app.name })
-        : JSON.stringify(
-            {
-              generator: `imu-calibration-lab ${VERSION}`,
-              source: app.name,
-              accel: accel ? accelJson(accel) : null,
-              gyro: gyro ? gyroJson(gyro) : null,
-              mag: mag ? magJson(mag) : null,
-            },
-            null,
-            2,
-          );
+        : combinedJsonText({
+            source: app.name,
+            accel: accel ? accelJson(accel) : null,
+            gyro: gyro ? gyroJson(gyro) : null,
+            mag: mag ? magJson(mag) : null,
+          });
   /** @type {HTMLTextAreaElement} */ (el("export-text")).value = text;
 }
 
