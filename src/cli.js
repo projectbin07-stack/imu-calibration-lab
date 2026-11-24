@@ -5,7 +5,16 @@ import { parseArgs } from "node:util";
 import { calibrateAccel, CalibrationError } from "./core/accel.js";
 import { allanForDataset } from "./core/allan.js";
 import { CsvError } from "./core/csv.js";
-import { accelJson, allanJson, cHeader, gyroJson, magJson, sig, VERSION } from "./core/export.js";
+import {
+  accelJson,
+  allanJson,
+  cHeader,
+  combinedJsonText,
+  gyroJson,
+  magJson,
+  sig,
+  VERSION,
+} from "./core/export.js";
 import { calibrateGyro } from "./core/gyro.js";
 import { loadCsv, parseMapSpec } from "./core/load.js";
 import { calibrateMag } from "./core/mag.js";
@@ -39,6 +48,8 @@ Usage:
   imu-calibration-lab allan <file.csv> [options]   Allan deviation and noise terms
   imu-calibration-lab synth <kind> [options]       write a synthetic log (accel,
                                                    accel-axis, gyro, mag, noise)
+  imu-calibration-lab combine <result.json>...     merge accel, gyro and mag --json
+                                                   results into the page's export file
   imu-calibration-lab --help | --version
 
 Output:
@@ -69,11 +80,15 @@ mag:    --dip <deg>   inclination for the heading estimate (default: from the
 allan:  --sensor gyro|accel   --per-decade <n> (default 10)
 synth:  --seed <n>  --raw (MPU6050 counts, t in ms)  --seconds <s> (noise)
         --out <file.csv> (default: standard output)
+combine: --source <name>  "source" field (default: the result file names)
+        --out <file.json> (default: standard output)
 
 Everything runs locally; no file is uploaded anywhere.
 `;
 
 class UsageError extends Error {}
+/** A result file that cannot go into the combined file. */
+class InputError extends Error {}
 
 /**
  * @template {string} T
@@ -139,6 +154,7 @@ const OPTIONS = /** @type {const} */ ({
   raw: { type: "boolean" },
   seconds: { type: "string" },
   out: { type: "string" },
+  source: { type: "string" },
 });
 
 /**
@@ -154,7 +170,12 @@ export function main(argv, io) {
       io.err(`error: ${e.message}\nRun with --help for usage.\n`);
       return 2;
     }
-    if (e instanceof CsvError || e instanceof CalibrationError || e instanceof RangeError) {
+    if (
+      e instanceof CsvError ||
+      e instanceof CalibrationError ||
+      e instanceof RangeError ||
+      e instanceof InputError
+    ) {
       io.err(`error: ${e.message}\n`);
       return 1;
     }
@@ -186,6 +207,7 @@ function run(argv, io) {
   }
   const [cmd, arg] = positionals;
   if (cmd === "synth") return synth(arg, o, io);
+  if (cmd === "combine") return combine(positionals.slice(1), o, io);
   if (!["accel", "gyro", "mag", "allan"].includes(cmd))
     throw new UsageError(`unknown command "${cmd}"`);
   if (!arg) throw new UsageError(`${cmd} needs a CSV file`);
@@ -388,5 +410,64 @@ function synth(kind, o, io) {
     io.writeFile(o.out, csv);
     io.err(`wrote ${o.out}: ${d.t.length} samples\n`);
   } else io.out(csv);
+  return 0;
+}
+
+const COMBINED_KINDS = /** @type {const} */ (["accel", "gyro", "mag"]);
+
+/**
+ * Merge single `--json` results into the combined file the page exports.
+ * @param {string[]} files
+ * @param {Record<string, string | boolean | undefined>} o
+ * @param {CliIo} io
+ * @returns {number}
+ */
+function combine(files, o, io) {
+  if (files.length === 0) throw new UsageError("combine needs at least one result JSON file");
+  if (o.c) throw new UsageError("--c is not available for combine");
+  /** @type {Record<string, { file: string, json: unknown }>} */
+  const parts = {};
+  for (const file of files) {
+    let text;
+    try {
+      text = io.readFile(file);
+    } catch (e) {
+      throw new InputError(`cannot read ${file}: ${/** @type {Error} */ (e).message}`);
+    }
+    /** @type {unknown} */
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch (e) {
+      throw new InputError(`${file}: not valid JSON: ${/** @type {Error} */ (e).message}`);
+    }
+    const kind =
+      json && typeof json === "object" && !Array.isArray(json)
+        ? /** @type {{ kind?: unknown }} */ (json).kind
+        : undefined;
+    if (typeof kind !== "string")
+      throw new InputError(
+        `${file}: no "kind" field; expected the --json output of accel, gyro or mag`,
+      );
+    if (!(/** @type {readonly string[]} */ (COMBINED_KINDS).includes(kind)))
+      throw new InputError(
+        `${file}: kind "${kind}" is not part of the combined file (accel, gyro or mag)`,
+      );
+    const prev = parts[kind];
+    if (prev) throw new InputError(`${file}: a second ${kind} result (the first is ${prev.file})`);
+    parts[kind] = { file, json };
+  }
+  const source = typeof o.source === "string" ? o.source : files.join(", ");
+  const text = combinedJsonText({
+    source,
+    accel: parts.accel?.json ?? null,
+    gyro: parts.gyro?.json ?? null,
+    mag: parts.mag?.json ?? null,
+  });
+  if (typeof o.out === "string") {
+    io.writeFile(o.out, text);
+    const kinds = COMBINED_KINDS.filter((k) => parts[k]);
+    io.err(`wrote ${o.out}: ${kinds.join(", ")}\n`);
+  } else io.out(text);
   return 0;
 }

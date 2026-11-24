@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { VERSION, main } from "../src/cli.js";
+import { calibrateAccel } from "../src/core/accel.js";
+import { accelJson, combinedJsonText, gyroJson, magJson } from "../src/core/export.js";
+import { calibrateGyro } from "../src/core/gyro.js";
+import { loadCsv } from "../src/core/load.js";
+import { calibrateMag } from "../src/core/mag.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -158,6 +163,100 @@ test("usage and data errors give exit codes 2 and 1", () => {
   const noMag = cli(["mag", "examples/accel-15pose.csv"]);
   assert.equal(noMag.code, 1);
   assert.match(noMag.err, /no magnetometer/);
+});
+
+const EX = {
+  accel: "examples/accel-15pose.csv",
+  gyro: "examples/gyro-turns-mpu6050-raw.csv",
+  mag: "examples/mag-tumble.csv",
+};
+
+/** --json results of the three example logs, keyed by in-memory file name. */
+function exampleResults() {
+  /** @type {Record<string, string>} */
+  const mem = {};
+  for (const [kind, csv] of Object.entries(EX)) {
+    const r = cli([kind, csv, "--json"]);
+    assert.equal(r.code, 0, r.err);
+    mem[`${kind}.json`] = r.out;
+  }
+  return mem;
+}
+
+/**
+ * What the page's export produces for a log, computed the way
+ * src/ui/app.js does it: calibrate, summarise, combinedJsonText.
+ * @param {string} source
+ * @param {{ accel?: string, gyro?: string, mag?: string }} csv
+ */
+function pageExport(source, csv) {
+  const read = (/** @type {string} */ p) =>
+    loadCsv(readFileSync(new URL(p, new URL("../", import.meta.url)), "utf8")).data;
+  return combinedJsonText({
+    source,
+    accel: csv.accel ? accelJson(calibrateAccel(read(csv.accel))) : null,
+    gyro: csv.gyro ? gyroJson(calibrateGyro(read(csv.gyro))) : null,
+    mag: csv.mag ? magJson(calibrateMag(read(csv.mag))) : null,
+  });
+}
+
+test("combine writes the same bytes as the page's export for the example logs", () => {
+  const mem = exampleResults();
+  const c = cli(["combine", "mag.json", "accel.json", "gyro.json", "--source", "bench"], mem);
+  assert.equal(c.code, 0, c.err);
+  assert.equal(c.out, pageExport("bench", EX));
+  const j = JSON.parse(c.out);
+  assert.deepEqual(Object.keys(j), ["generator", "source", "accel", "gyro", "mag"]);
+  assert.equal(j.generator, `imu-calibration-lab ${VERSION}`);
+  assert.equal(j.accel.kind, "accel");
+  assert.equal(j.gyro.kind, "gyro");
+  assert.equal(j.mag.kind, "mag");
+
+  // A subset leaves the missing sensors null, like a log without a magnetometer.
+  const part = cli(["combine", "gyro.json", "--out", "cal.json"], mem);
+  assert.equal(part.code, 0, part.err);
+  assert.equal(part.out, "");
+  assert.equal(part.err, "wrote cal.json: gyro\n");
+  assert.equal(part.files["cal.json"], pageExport("gyro.json", { gyro: EX.gyro }));
+  const two = cli(["combine", "accel.json", "mag.json"], mem);
+  assert.equal(JSON.parse(two.out).source, "accel.json, mag.json");
+  assert.equal(JSON.parse(two.out).gyro, null);
+});
+
+test("combine rejects wrong kinds, duplicates and unreadable files", () => {
+  /** @type {Record<string, string>} */
+  const mem = {
+    ...exampleResults(),
+    "allan.json": JSON.stringify({ kind: "allan", axes: [] }),
+    "array.json": "[1, 2]",
+    "broken.json": "{ not json",
+  };
+  const combined = cli(["combine", "accel.json", "gyro.json"], mem).out;
+  mem["combined.json"] = combined;
+  /** @param {string[]} files @param {RegExp} msg */
+  const fails = (files, msg) => {
+    const r = cli(["combine", ...files], mem);
+    assert.equal(r.code, 1, files.join(" "));
+    assert.equal(r.out, "");
+    assert.match(r.err, msg);
+  };
+  fails(
+    ["accel.json", "allan.json"],
+    /^error: allan\.json: kind "allan" is not part of the combined file/,
+  );
+  // a combined file is not a single result either
+  fails(["combined.json"], /^error: combined\.json: no "kind" field/);
+  fails(["array.json"], /no "kind" field/);
+  fails(
+    ["accel.json", "gyro.json", "accel.json"],
+    /^error: accel\.json: a second accel result \(the first is accel\.json\)/,
+  );
+  fails(["broken.json"], /^error: broken\.json: not valid JSON/);
+  fails(["gyro.json", "does-not-exist.json"], /^error: cannot read does-not-exist\.json/);
+  // a CSV log is not a result file
+  fails([EX.accel], /not valid JSON/);
+  assert.equal(cli(["combine"]).code, 2);
+  assert.equal(cli(["combine", "accel.json", "--c"], mem).code, 2);
 });
 
 test("the bin script runs as a separate process", () => {

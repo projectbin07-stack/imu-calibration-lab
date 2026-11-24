@@ -55,6 +55,10 @@ jobs:
           node $B gyro examples/gyro-turns-mpu6050-raw.csv --json > gyro.json
           node -e "const j = require('./gyro.json'); if (j.rotations.length !== 3 || Math.abs(j.scale[2] - 1.034) > 0.002) process.exit(1)"
           node $B mag examples/mag-tumble.csv
+          node $B mag examples/mag-tumble.csv --json > mag.json
+          node $B combine accel.json gyro.json mag.json --source examples --out combined.json
+          node -e "const j = require('./combined.json'); if (Object.keys(j).join() !== 'generator,source,accel,gyro,mag' || j.mag.kind !== 'mag') process.exit(1)"
+          if node $B combine accel.json accel.json; then exit 1; fi
           node $B synth noise --seconds 900 --out noise.csv
           node $B allan noise.csv
           node $B allan noise.csv --json > allan.json
