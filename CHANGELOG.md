@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-25
+
+### Added
+
+- CLI: `combine <result.json>...` merges the `--json` results of `accel`,
+  `gyro` and `mag` into the combined
+  `{ generator, source, accel, gyro, mag }` file the page exports, with
+  `--source` for the source field and `--out` for a file. Missing sensors
+  are `null`. Allan results, files without a `kind`, duplicate kinds,
+  invalid JSON and unreadable files exit with code 1.
+- Tests that `combine` on the example logs gives the same bytes as the
+  page's export path, and for each rejected input; CI runs `combine` in the
+  CLI smoke test.
+
+### Changed
+
+- The page's combined JSON export is built by `combinedJsonText` in
+  `src/core/export.js`, shared with the CLI. The downloaded file now ends
+  with a newline.
+
 ## [0.1.0] - 2026-11-19
 
 First release. All bundled results come from synthetic data; nothing has been
@@ -45,4 +65,5 @@ validated on a physical sensor yet.
   rotatable 3D view, Allan plot with fitted lines, temperature plot,
   shareable settings in the URL, light and dark themes, phone layout.
 
+[0.2.0]: https://github.com/projectbin07-stack/imu-calibration-lab/releases/tag/v0.2.0
 [0.1.0]: https://github.com/projectbin07-stack/imu-calibration-lab/releases/tag/v0.1.0
