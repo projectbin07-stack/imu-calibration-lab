@@ -1,6 +1,6 @@
 {
   "name": "imu-calibration-lab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Calibrate accelerometers, gyroscopes and magnetometers from logged data and characterise IMU noise with Allan deviation.",
   "license": "MIT",

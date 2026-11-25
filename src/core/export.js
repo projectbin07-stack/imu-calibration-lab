@@ -2,7 +2,7 @@
 // structs and apply functions that compile for Arduino (AVR, ESP32, STM32)
 // and desktop C99/C++.
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 /** @typedef {import("./accel.js").AccelResult} AccelResult */
 /** @typedef {import("./gyro.js").GyroResult} GyroResult */
