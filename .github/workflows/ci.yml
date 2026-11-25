@@ -58,13 +58,19 @@ jobs:
           node $B mag examples/mag-tumble.csv --json > mag.json
           node $B combine accel.json gyro.json mag.json --source examples --out combined.json
           node -e "const j = require('./combined.json'); if (Object.keys(j).join() !== 'generator,source,accel,gyro,mag' || j.mag.kind !== 'mag') process.exit(1)"
-          if node $B combine accel.json accel.json; then exit 1; fi
+          # Standard output and --out carry the same bytes.
+          node $B combine accel.json gyro.json mag.json --source examples | cmp - combined.json
+          # A duplicate kind and an unreadable file exit with 1 (data error), not 2.
+          code=0; node $B combine accel.json accel.json || code=$?; [ "$code" -eq 1 ]
+          code=0; node $B combine accel.json missing.json || code=$?; [ "$code" -eq 1 ]
           node $B synth noise --seconds 900 --out noise.csv
           node $B allan noise.csv
           node $B allan noise.csv --json > allan.json
           node -e "const j = require('./allan.json'); if (Math.abs(j.axes[0].whiteNoise - 0.3) > 0.03) process.exit(1)"
           # Same input, same bytes.
           node $B allan noise.csv --json | cmp - allan.json
+          # An Allan result is not part of the combined calibration file.
+          code=0; node $B combine accel.json allan.json || code=$?; [ "$code" -eq 1 ]
 
       - name: Compile the C/C++ export and compare with JavaScript
         if: runner.os == 'Linux'
