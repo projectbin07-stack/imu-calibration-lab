@@ -68,7 +68,9 @@ you constants to paste into the firmware.
 - **Allan deviation**: overlapping estimator on log-spaced cluster times,
   read-off of white noise (angle/velocity random walk), bias instability and
   rate random walk with fitted slope lines and confidence.
-- **Export**: JSON, and a C/C++ header with const structs, apply functions
+- **Export**: JSON (one file per sensor, or the combined
+  `{ generator, source, accel, gyro, mag }` file from the page or from
+  `combine`), and a C/C++ header with const structs, apply functions
   and an Arduino example. CI compiles it as C99 and C++11 with
   `-Wall -Wextra -Werror -pedantic` and checks the output against the
   JavaScript results.
@@ -197,7 +199,7 @@ at +/-2, 4, 8, 16 g; 131, 65.5, 32.8, 16.4 LSB/(deg/s) at +/-250, 500,
 
 ```text
 $ imu-calibration-lab --help
-imu-calibration-lab 0.1.0: IMU calibration and noise analysis from logged data
+imu-calibration-lab 0.2.0: IMU calibration and noise analysis from logged data
 
 Usage:
   imu-calibration-lab accel <file.csv> [options]   accelerometer bias, scale, misalignment
@@ -206,6 +208,8 @@ Usage:
   imu-calibration-lab allan <file.csv> [options]   Allan deviation and noise terms
   imu-calibration-lab synth <kind> [options]       write a synthetic log (accel,
                                                    accel-axis, gyro, mag, noise)
+  imu-calibration-lab combine <result.json>...     merge accel, gyro and mag --json
+                                                   results into the page's export file
   imu-calibration-lab --help | --version
 
 Output:
@@ -236,6 +240,8 @@ mag:    --dip <deg>   inclination for the heading estimate (default: from the
 allan:  --sensor gyro|accel   --per-decade <n> (default 10)
 synth:  --seed <n>  --raw (MPU6050 counts, t in ms)  --seconds <s> (noise)
         --out <file.csv> (default: standard output)
+combine: --source <name>  "source" field (default: the result file names)
+        --out <file.json> (default: standard output)
 
 Everything runs locally; no file is uploaded anywhere.
 ```
@@ -384,6 +390,41 @@ static inline void imu_accel_apply(const imu_accel_cal_t *c, const float in[3], 
 }
 ```
 
+**Combined calibration file.** The page's JSON export is one file,
+`{ generator, source, accel, gyro, mag }`. `combine` writes the same file
+from `--json` results, through the same function in `src/core/export.js`,
+so the bytes match the page's export for the same logs, settings and source name.
+A sensor that is not given is `null`, as on the page for a log without
+that sensor.
+
+```text
+$ imu-calibration-lab accel examples/accel-15pose.csv --json > accel.json
+$ imu-calibration-lab gyro examples/gyro-turns-mpu6050-raw.csv --json > gyro.json
+$ imu-calibration-lab mag examples/mag-tumble.csv --json > mag.json
+$ imu-calibration-lab combine accel.json gyro.json mag.json --source "bench IMU, 2026-11-24" --out imu-calibration.json
+wrote imu-calibration.json: accel, gyro, mag
+$ head -9 imu-calibration.json
+{
+  "generator": "imu-calibration-lab 0.2.0",
+  "source": "bench IMU, 2026-11-24",
+  "accel": {
+    "kind": "accel",
+    "model": "nine",
+    "units": "g",
+    "apply": "a_cal = M (a_raw - b)",
+    "bias": [
+```
+
+Each result must be the `--json` output of `accel`, `gyro` or `mag`, and
+each kind may appear once; anything else is a data error (exit code 1):
+
+```text
+$ imu-calibration-lab combine accel.json accel.json
+error: accel.json: a second accel result (the first is accel.json)
+$ imu-calibration-lab combine gyro.json allan.json
+error: allan.json: kind "allan" is not part of the combined file (accel, gyro or mag)
+```
+
 `--json` prints the same parameters with the poses, residuals, rotations,
 temperature bins or Allan curves. Exit codes: 0 success, 1 data error (with
 the line number for CSV problems), 2 usage error.
@@ -426,7 +467,7 @@ npm run check        # Prettier, tsc --checkJs --strict, node:test with coverage
 ```
 
 On the development machine (Windows 11, Node 25) `npm run coverage` reports
-62 tests, 62 passing, with 98.88 % line, 94.64 % branch and 97.37 % function
+65 tests, 65 passing, with 98.91 % line, 94.82 % branch and 97.39 % function
 coverage over the measured files (`src/ui/app.js` and `src/ui/draw.js` are
 excluded; CI loads the page in headless Chrome instead).
 
@@ -455,7 +496,10 @@ What the tests check, all on synthetic data with known truth:
   BOM/CRLF/semicolons/quotes, line-numbered errors, unit guesses, MPU6050
   scaling at every range and the temperature formula.
 - **Export, CLI and determinism**: same seed, same data and the same CLI
-  output; JSON shape; C header structure; exit codes. CI also compiles the
+  output; JSON shape; C header structure; exit codes; `combine` on the
+  example logs gives the same bytes as the page's export path, and rejects
+  Allan results, files without a kind, duplicate kinds, invalid JSON and
+  unreadable files. CI also compiles the
   header with gcc and g++ and compares the apply functions with JavaScript.
 
 ## Known limitations
